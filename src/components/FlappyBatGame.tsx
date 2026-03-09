@@ -21,6 +21,7 @@ interface Pipe {
 const FlappyBatGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>(0);
+  const modiImgRef = useRef<HTMLImageElement | null>(null);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<"idle" | "playing" | "over">("idle");
   
@@ -32,6 +33,12 @@ const FlappyBatGame = () => {
     score: 0,
     wingFrame: 0,
   });
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = modiBatImg;
+    img.onload = () => { modiImgRef.current = img; };
+  }, []);
 
   const drawBat = (ctx: CanvasRenderingContext2D, x: number, y: number, velocity: number, wingFrame: number) => {
     const rotation = Math.min(Math.max(velocity * 3, -30), 45) * (Math.PI / 180);
