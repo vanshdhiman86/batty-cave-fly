@@ -265,6 +265,7 @@ const FlappyBatGame = () => {
   }, [gameState]);
 
   const restart = useCallback(() => {
+    startBgMusic();
     stateRef.current = {
       batY: CANVAS_HEIGHT / 2,
       batVelocity: 0,
