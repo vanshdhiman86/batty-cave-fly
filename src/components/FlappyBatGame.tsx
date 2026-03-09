@@ -187,12 +187,37 @@ const FlappyBatGame = () => {
         setScore(s.score);
       }
 
-      // Collision
+      // Collision - use tighter hitbox matching the visual stalactite shape
       const p = s.pipes[i];
-      if (
-        batX + 14 > p.x && batX - 14 < p.x + PIPE_WIDTH &&
-        (s.batY - 10 < p.topHeight || s.batY + 10 > p.topHeight + PIPE_GAP)
-      ) {
+      const pipeCenterX = p.x + PIPE_WIDTH / 2;
+      
+      // Stalactites taper to a point, so narrow the collision width near the tips
+      const distFromTopTip = p.topHeight - s.batY;
+      const distFromBottomTip = s.batY - (p.topHeight + PIPE_GAP);
+      
+      // Calculate effective pipe width at bat's Y position (narrower near tips)
+      let inTopPipe = false;
+      let inBottomPipe = false;
+      
+      if (s.batY - 8 < p.topHeight) {
+        // How far into the top stalactite (0 = tip, 1 = base)
+        const ratio = Math.min(1, (p.topHeight - (s.batY - 8)) / p.topHeight);
+        const effectiveHalfWidth = (PIPE_WIDTH / 2 + 8) * Math.max(0.15, ratio * 0.85);
+        if (batX + 10 > pipeCenterX - effectiveHalfWidth && batX - 10 < pipeCenterX + effectiveHalfWidth) {
+          inTopPipe = true;
+        }
+      }
+      
+      if (s.batY + 8 > p.topHeight + PIPE_GAP) {
+        const bottomHeight = CANVAS_HEIGHT - p.topHeight - PIPE_GAP;
+        const ratio = Math.min(1, ((s.batY + 8) - (p.topHeight + PIPE_GAP)) / bottomHeight);
+        const effectiveHalfWidth = (PIPE_WIDTH / 2 + 8) * Math.max(0.15, ratio * 0.85);
+        if (batX + 10 > pipeCenterX - effectiveHalfWidth && batX - 10 < pipeCenterX + effectiveHalfWidth) {
+          inBottomPipe = true;
+        }
+      }
+      
+      if (inTopPipe || inBottomPipe) {
         collided = true;
       }
     }
