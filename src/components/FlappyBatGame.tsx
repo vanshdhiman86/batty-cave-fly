@@ -211,7 +211,7 @@ const FlappyBatGame = () => {
       drawStalactite(ctx, p.x, p.topHeight, true);
       drawStalactite(ctx, p.x, CANVAS_HEIGHT - p.topHeight - PIPE_GAP, false);
     });
-    drawBat(ctx, batX, s.batY, s.batVelocity, s.wingFrame);
+    drawBat(ctx, batX, s.batY, s.batVelocity);
 
     // Score display on canvas
     ctx.fillStyle = "hsla(35, 80%, 55%, 0.9)";
@@ -276,7 +276,7 @@ const FlappyBatGame = () => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     drawCaveBackground(ctx, 0);
-    drawBat(ctx, 80, CANVAS_HEIGHT / 2, 0, 0);
+    drawBat(ctx, 80, CANVAS_HEIGHT / 2, 0);
     ctx.fillStyle = "hsl(40, 20%, 90%)";
     ctx.font = "bold 28px monospace";
     ctx.textAlign = "center";
