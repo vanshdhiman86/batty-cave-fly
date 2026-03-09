@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { playFlap, playScore, playGameOver, startBgMusic, stopBgMusic } from "./game/AudioManager";
+import modiBatImg from "../assets/modi-bat.png";
 
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 600;
@@ -20,6 +21,7 @@ interface Pipe {
 const FlappyBatGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>(0);
+  const modiImgRef = useRef<HTMLImageElement | null>(null);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<"idle" | "playing" | "over">("idle");
   
@@ -32,59 +34,28 @@ const FlappyBatGame = () => {
     wingFrame: 0,
   });
 
-  const drawBat = (ctx: CanvasRenderingContext2D, x: number, y: number, velocity: number, wingFrame: number) => {
+  useEffect(() => {
+    const img = new Image();
+    img.src = modiBatImg;
+    img.onload = () => { modiImgRef.current = img; };
+  }, []);
+
+  const drawBat = (ctx: CanvasRenderingContext2D, x: number, y: number, velocity: number) => {
     const rotation = Math.min(Math.max(velocity * 3, -30), 45) * (Math.PI / 180);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rotation);
-
-    // Body
-    ctx.fillStyle = "hsl(270, 30%, 25%)";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 14, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Wings
-    const wingAngle = Math.sin(wingFrame * 0.3) * 0.6;
-    ctx.fillStyle = "hsl(270, 25%, 35%)";
-    // Left wing
-    ctx.beginPath();
-    ctx.moveTo(-5, -2);
-    ctx.quadraticCurveTo(-22, -18 + wingAngle * 15, -28, -5 + wingAngle * 10);
-    ctx.quadraticCurveTo(-20, 5, -5, 3);
-    ctx.fill();
-    // Right wing
-    ctx.beginPath();
-    ctx.moveTo(5, -2);
-    ctx.quadraticCurveTo(22, -18 + wingAngle * 15, 28, -5 + wingAngle * 10);
-    ctx.quadraticCurveTo(20, 5, 5, 3);
-    ctx.fill();
-
-    // Ears
-    ctx.fillStyle = "hsl(270, 30%, 25%)";
-    ctx.beginPath();
-    ctx.moveTo(-6, -8);
-    ctx.lineTo(-10, -18);
-    ctx.lineTo(-2, -10);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(6, -8);
-    ctx.lineTo(10, -18);
-    ctx.lineTo(2, -10);
-    ctx.fill();
-
-    // Eyes
-    ctx.fillStyle = "hsl(50, 100%, 60%)";
-    ctx.beginPath();
-    ctx.arc(-5, -3, 3, 0, Math.PI * 2);
-    ctx.arc(5, -3, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "hsl(0, 0%, 5%)";
-    ctx.beginPath();
-    ctx.arc(-5, -3, 1.5, 0, Math.PI * 2);
-    ctx.arc(5, -3, 1.5, 0, Math.PI * 2);
-    ctx.fill();
-
+    const img = modiImgRef.current;
+    const size = 50;
+    if (img) {
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+      // Fallback circle
+      ctx.fillStyle = "hsl(30, 80%, 50%)";
+      ctx.beginPath();
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   };
 
@@ -240,7 +211,7 @@ const FlappyBatGame = () => {
       drawStalactite(ctx, p.x, p.topHeight, true);
       drawStalactite(ctx, p.x, CANVAS_HEIGHT - p.topHeight - PIPE_GAP, false);
     });
-    drawBat(ctx, batX, s.batY, s.batVelocity, s.wingFrame);
+    drawBat(ctx, batX, s.batY, s.batVelocity);
 
     // Score display on canvas
     ctx.fillStyle = "hsla(35, 80%, 55%, 0.9)";
@@ -305,7 +276,7 @@ const FlappyBatGame = () => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     drawCaveBackground(ctx, 0);
-    drawBat(ctx, 80, CANVAS_HEIGHT / 2, 0, 0);
+    drawBat(ctx, 80, CANVAS_HEIGHT / 2, 0);
     ctx.fillStyle = "hsl(40, 20%, 90%)";
     ctx.font = "bold 28px monospace";
     ctx.textAlign = "center";
