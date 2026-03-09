@@ -40,59 +40,22 @@ const FlappyBatGame = () => {
     img.onload = () => { modiImgRef.current = img; };
   }, []);
 
-  const drawBat = (ctx: CanvasRenderingContext2D, x: number, y: number, velocity: number, wingFrame: number) => {
+  const drawBat = (ctx: CanvasRenderingContext2D, x: number, y: number, velocity: number) => {
     const rotation = Math.min(Math.max(velocity * 3, -30), 45) * (Math.PI / 180);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rotation);
-
-    // Body
-    ctx.fillStyle = "hsl(270, 30%, 25%)";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 14, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Wings
-    const wingAngle = Math.sin(wingFrame * 0.3) * 0.6;
-    ctx.fillStyle = "hsl(270, 25%, 35%)";
-    // Left wing
-    ctx.beginPath();
-    ctx.moveTo(-5, -2);
-    ctx.quadraticCurveTo(-22, -18 + wingAngle * 15, -28, -5 + wingAngle * 10);
-    ctx.quadraticCurveTo(-20, 5, -5, 3);
-    ctx.fill();
-    // Right wing
-    ctx.beginPath();
-    ctx.moveTo(5, -2);
-    ctx.quadraticCurveTo(22, -18 + wingAngle * 15, 28, -5 + wingAngle * 10);
-    ctx.quadraticCurveTo(20, 5, 5, 3);
-    ctx.fill();
-
-    // Ears
-    ctx.fillStyle = "hsl(270, 30%, 25%)";
-    ctx.beginPath();
-    ctx.moveTo(-6, -8);
-    ctx.lineTo(-10, -18);
-    ctx.lineTo(-2, -10);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(6, -8);
-    ctx.lineTo(10, -18);
-    ctx.lineTo(2, -10);
-    ctx.fill();
-
-    // Eyes
-    ctx.fillStyle = "hsl(50, 100%, 60%)";
-    ctx.beginPath();
-    ctx.arc(-5, -3, 3, 0, Math.PI * 2);
-    ctx.arc(5, -3, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "hsl(0, 0%, 5%)";
-    ctx.beginPath();
-    ctx.arc(-5, -3, 1.5, 0, Math.PI * 2);
-    ctx.arc(5, -3, 1.5, 0, Math.PI * 2);
-    ctx.fill();
-
+    const img = modiImgRef.current;
+    const size = 50;
+    if (img) {
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+      // Fallback circle
+      ctx.fillStyle = "hsl(30, 80%, 50%)";
+      ctx.beginPath();
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   };
 
