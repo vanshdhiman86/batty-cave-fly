@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { playFlap, playScore, playGameOver, startBgMusic, stopBgMusic } from "./game/AudioManager";
 
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 600;
@@ -185,6 +186,7 @@ const FlappyBatGame = () => {
         s.pipes[i].scored = true;
         s.score++;
         setScore(s.score);
+        playScore();
       }
 
       // Collision - use tighter hitbox matching the visual stalactite shape
@@ -226,6 +228,8 @@ const FlappyBatGame = () => {
     if (s.batY < 10 || s.batY > CANVAS_HEIGHT - 10) collided = true;
 
     if (collided) {
+      playGameOver();
+      stopBgMusic();
       setGameState("over");
       return;
     }
@@ -253,12 +257,15 @@ const FlappyBatGame = () => {
   const jump = useCallback(() => {
     if (gameState === "idle") {
       setGameState("playing");
+      startBgMusic();
     }
     if (gameState === "over") return;
     stateRef.current.batVelocity = JUMP_FORCE;
+    playFlap();
   }, [gameState]);
 
   const restart = useCallback(() => {
+    startBgMusic();
     stateRef.current = {
       batY: CANVAS_HEIGHT / 2,
       batVelocity: 0,
