@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { playFlap, playScore, playGameOver, startBgMusic, stopBgMusic } from "./game/AudioManager";
 
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 600;
