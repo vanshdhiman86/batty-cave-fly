@@ -172,29 +172,39 @@ const FlappyBatGame = () => {
 
   const drawEnemyObstacle = (ctx: CanvasRenderingContext2D, x: number, height: number, fromTop: boolean, enemyIdx: number) => {
     const img = enemyImgsRef.current[enemyIdx % 3];
-    // Draw a column of enemy faces to fill the obstacle area
-    const numFaces = Math.ceil(height / OBSTACLE_SIZE);
-    const startY = fromTop ? 0 : CANVAS_HEIGHT - height;
+    const spriteSize = 80;
+    const centerX = x + PIPE_WIDTH / 2;
+    const centerY = fromTop ? height - spriteSize / 2 : CANVAS_HEIGHT - height + spriteSize / 2;
 
-    for (let i = 0; i < numFaces; i++) {
-      const faceY = startY + i * OBSTACLE_SIZE;
-      const faceX = x + (PIPE_WIDTH - OBSTACLE_SIZE) / 2;
-
-      if (img) {
-        ctx.drawImage(img, faceX, faceY, OBSTACLE_SIZE, OBSTACLE_SIZE);
-      } else {
-        // Fallback
-        ctx.fillStyle = "hsl(0, 60%, 40%)";
-        ctx.beginPath();
-        ctx.arc(x + PIPE_WIDTH / 2, faceY + OBSTACLE_SIZE / 2, OBSTACLE_SIZE / 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    // Draw the pipe/pillar extending from wall to sprite
+    const lm = getLandmark();
+    ctx.fillStyle = lm.ground + "44";
+    if (fromTop) {
+      ctx.fillRect(x + 10, 0, PIPE_WIDTH - 20, height - spriteSize / 2);
+    } else {
+      ctx.fillRect(x + 10, CANVAS_HEIGHT - height + spriteSize / 2, PIPE_WIDTH - 20, height - spriteSize / 2);
     }
 
-    // Glow border around obstacle column
-    ctx.strokeStyle = "rgba(255, 80, 80, 0.3)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, startY, PIPE_WIDTH, height);
+    // Circular clip for the sprite
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, spriteSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    if (img) {
+      ctx.drawImage(img, centerX - spriteSize / 2, centerY - spriteSize / 2, spriteSize, spriteSize);
+    } else {
+      ctx.fillStyle = "hsl(0, 60%, 40%)";
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Glow ring
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, spriteSize / 2 + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255, 80, 80, 0.5)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
   };
 
   const gameLoop = useCallback(() => {
