@@ -1,30 +1,49 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { playFlap, playScore, playGameOver, startBgMusic, stopBgMusic } from "./game/AudioManager";
 import modiBatImg from "../assets/modi-bat.png";
+import kejriwalImg from "../assets/kejriwal.png";
+import rahulImg from "../assets/rahul.png";
+import trumpImg from "../assets/trump.png";
 
 const CANVAS_WIDTH = 400;
 const CANVAS_HEIGHT = 600;
-const BAT_SIZE = 30;
 const GRAVITY = 0.45;
 const JUMP_FORCE = -7.5;
 const PIPE_WIDTH = 60;
 const PIPE_GAP = 150;
 const PIPE_SPEED = 2.5;
 const PIPE_INTERVAL = 180;
+const OBSTACLE_SIZE = 55;
+
+const ENEMY_IMAGES = [kejriwalImg, rahulImg, trumpImg];
+
+// Landmark color palettes for dynamic backgrounds
+const LANDMARKS = [
+  { name: "Delhi", sky: ["#1a1a2e", "#16213e", "#0f3460"], ground: "#e94560", accent: "rgba(233,69,96,0.15)" },
+  { name: "Paris", sky: ["#2d1b69", "#11052c", "#3c096c"], ground: "#f72585", accent: "rgba(247,37,133,0.12)" },
+  { name: "Washington", sky: ["#0d1b2a", "#1b263b", "#415a77"], ground: "#778da9", accent: "rgba(119,141,169,0.1)" },
+  { name: "Agra", sky: ["#1b0a2e", "#2d1459", "#4a1f7a"], ground: "#e0aaff", accent: "rgba(224,170,255,0.1)" },
+  { name: "Beijing", sky: ["#2b0000", "#450a0a", "#7f1d1d"], ground: "#fca311", accent: "rgba(252,163,17,0.12)" },
+  { name: "London", sky: ["#1a1a2e", "#2d3436", "#636e72"], ground: "#dfe6e9", accent: "rgba(223,230,233,0.08)" },
+];
 
 interface Pipe {
   x: number;
   topHeight: number;
   scored: boolean;
+  enemyIndex: number; // which enemy sprite to use (top)
+  enemyIndex2: number; // which enemy sprite for bottom
 }
 
 const FlappyBatGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number>(0);
   const modiImgRef = useRef<HTMLImageElement | null>(null);
+  const enemyImgsRef = useRef<HTMLImageElement[]>([]);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<"idle" | "playing" | "over">("idle");
-  
+  const landmarkIndexRef = useRef(0);
+
   const stateRef = useRef({
     batY: CANVAS_HEIGHT / 2,
     batVelocity: 0,
@@ -32,13 +51,49 @@ const FlappyBatGame = () => {
     frameCount: 0,
     score: 0,
     wingFrame: 0,
+    lastLandmarkScore: 0,
   });
 
+  // Preload images
   useEffect(() => {
     const img = new Image();
     img.src = modiBatImg;
     img.onload = () => { modiImgRef.current = img; };
+
+    ENEMY_IMAGES.forEach((src, i) => {
+      const eImg = new Image();
+      eImg.src = src;
+      eImg.onload = () => { enemyImgsRef.current[i] = eImg; };
+    });
   }, []);
+
+  const getLandmark = () => LANDMARKS[landmarkIndexRef.current % LANDMARKS.length];
+
+  const drawBackground = (ctx: CanvasRenderingContext2D, frame: number) => {
+    const lm = getLandmark();
+    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+    grad.addColorStop(0, lm.sky[0]);
+    grad.addColorStop(0.5, lm.sky[1]);
+    grad.addColorStop(1, lm.sky[2]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    // Floating particles with landmark accent
+    ctx.fillStyle = lm.accent;
+    for (let i = 0; i < 20; i++) {
+      const px = ((i * 97 + frame * 0.3) % (CANVAS_WIDTH + 20)) - 10;
+      const py = ((i * 53 + Math.sin(frame * 0.02 + i) * 20) % CANVAS_HEIGHT);
+      ctx.beginPath();
+      ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Landmark name label
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    ctx.font = "bold 60px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(lm.name.toUpperCase(), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+  };
 
   const drawBat = (ctx: CanvasRenderingContext2D, x: number, y: number, velocity: number) => {
     const rotation = Math.min(Math.max(velocity * 3, -30), 45) * (Math.PI / 180);
@@ -50,7 +105,6 @@ const FlappyBatGame = () => {
     if (img) {
       ctx.drawImage(img, -size / 2, -size / 2, size, size);
     } else {
-      // Fallback circle
       ctx.fillStyle = "hsl(30, 80%, 50%)";
       ctx.beginPath();
       ctx.arc(0, 0, 15, 0, Math.PI * 2);
@@ -59,65 +113,31 @@ const FlappyBatGame = () => {
     ctx.restore();
   };
 
-  const drawCaveBackground = (ctx: CanvasRenderingContext2D, frame: number) => {
-    // Gradient background
-    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
-    grad.addColorStop(0, "hsl(240, 25%, 3%)");
-    grad.addColorStop(0.5, "hsl(240, 18%, 8%)");
-    grad.addColorStop(1, "hsl(240, 25%, 5%)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  const drawEnemyObstacle = (ctx: CanvasRenderingContext2D, x: number, height: number, fromTop: boolean, enemyIdx: number) => {
+    const img = enemyImgsRef.current[enemyIdx % 3];
+    // Draw a column of enemy faces to fill the obstacle area
+    const numFaces = Math.ceil(height / OBSTACLE_SIZE);
+    const startY = fromTop ? 0 : CANVAS_HEIGHT - height;
 
-    // Subtle floating particles
-    ctx.fillStyle = "rgba(255, 200, 100, 0.05)";
-    for (let i = 0; i < 20; i++) {
-      const px = ((i * 97 + frame * 0.3) % (CANVAS_WIDTH + 20)) - 10;
-      const py = ((i * 53 + Math.sin(frame * 0.02 + i) * 20) % CANVAS_HEIGHT);
-      ctx.beginPath();
-      ctx.arc(px, py, 1.5, 0, Math.PI * 2);
-      ctx.fill();
+    for (let i = 0; i < numFaces; i++) {
+      const faceY = startY + i * OBSTACLE_SIZE;
+      const faceX = x + (PIPE_WIDTH - OBSTACLE_SIZE) / 2;
+
+      if (img) {
+        ctx.drawImage(img, faceX, faceY, OBSTACLE_SIZE, OBSTACLE_SIZE);
+      } else {
+        // Fallback
+        ctx.fillStyle = "hsl(0, 60%, 40%)";
+        ctx.beginPath();
+        ctx.arc(x + PIPE_WIDTH / 2, faceY + OBSTACLE_SIZE / 2, OBSTACLE_SIZE / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
-  };
 
-  const drawStalactite = (ctx: CanvasRenderingContext2D, x: number, height: number, fromTop: boolean) => {
-    const y = fromTop ? 0 : CANVAS_HEIGHT;
-    const dir = fromTop ? 1 : -1;
-
-    // Main rock body
-    const grad = ctx.createLinearGradient(x, y, x + PIPE_WIDTH, y + height * dir);
-    grad.addColorStop(0, "hsl(30, 20%, 22%)");
-    grad.addColorStop(0.5, "hsl(30, 15%, 28%)");
-    grad.addColorStop(1, "hsl(30, 20%, 18%)");
-    ctx.fillStyle = grad;
-
-    ctx.beginPath();
-    if (fromTop) {
-      ctx.moveTo(x - 8, 0);
-      ctx.lineTo(x + PIPE_WIDTH + 8, 0);
-      ctx.lineTo(x + PIPE_WIDTH - 5, height * 0.7);
-      ctx.quadraticCurveTo(x + PIPE_WIDTH / 2, height + 15, x + 5, height * 0.7);
-      ctx.closePath();
-    } else {
-      ctx.moveTo(x - 8, CANVAS_HEIGHT);
-      ctx.lineTo(x + PIPE_WIDTH + 8, CANVAS_HEIGHT);
-      ctx.lineTo(x + PIPE_WIDTH - 5, CANVAS_HEIGHT - height * 0.7);
-      ctx.quadraticCurveTo(x + PIPE_WIDTH / 2, CANVAS_HEIGHT - height - 15, x + 5, CANVAS_HEIGHT - height * 0.7);
-      ctx.closePath();
-    }
-    ctx.fill();
-
-    // Highlight edge
-    ctx.strokeStyle = "hsla(30, 15%, 40%, 0.4)";
+    // Glow border around obstacle column
+    ctx.strokeStyle = "rgba(255, 80, 80, 0.3)";
     ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Drip details
-    ctx.fillStyle = "hsla(200, 30%, 50%, 0.2)";
-    if (fromTop) {
-      ctx.beginPath();
-      ctx.ellipse(x + PIPE_WIDTH / 2, height - 2, 3, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.strokeRect(x, startY, PIPE_WIDTH, height);
   };
 
   const gameLoop = useCallback(() => {
@@ -134,12 +154,24 @@ const FlappyBatGame = () => {
     s.batVelocity += GRAVITY;
     s.batY += s.batVelocity;
 
+    // Change landmark every 10 points
+    if (s.score > 0 && s.score % 10 === 0 && s.score !== s.lastLandmarkScore) {
+      s.lastLandmarkScore = s.score;
+      landmarkIndexRef.current = (landmarkIndexRef.current + 1) % LANDMARKS.length;
+    }
+
     // Pipes
     if (s.frameCount % PIPE_INTERVAL === 0) {
       const minTop = 60;
       const maxTop = CANVAS_HEIGHT - PIPE_GAP - 60;
       const topHeight = minTop + Math.random() * (maxTop - minTop);
-      s.pipes.push({ x: CANVAS_WIDTH, topHeight, scored: false });
+      s.pipes.push({
+        x: CANVAS_WIDTH,
+        topHeight,
+        scored: false,
+        enemyIndex: Math.floor(Math.random() * 3),
+        enemyIndex2: Math.floor(Math.random() * 3),
+      });
     }
 
     const batX = 80;
@@ -160,38 +192,13 @@ const FlappyBatGame = () => {
         playScore();
       }
 
-      // Collision - use tighter hitbox matching the visual stalactite shape
+      // Collision - rectangular for the enemy sprites
       const p = s.pipes[i];
-      const pipeCenterX = p.x + PIPE_WIDTH / 2;
-      
-      // Stalactites taper to a point, so narrow the collision width near the tips
-      const distFromTopTip = p.topHeight - s.batY;
-      const distFromBottomTip = s.batY - (p.topHeight + PIPE_GAP);
-      
-      // Calculate effective pipe width at bat's Y position (narrower near tips)
-      let inTopPipe = false;
-      let inBottomPipe = false;
-      
-      if (s.batY - 8 < p.topHeight) {
-        // How far into the top stalactite (0 = tip, 1 = base)
-        const ratio = Math.min(1, (p.topHeight - (s.batY - 8)) / p.topHeight);
-        const effectiveHalfWidth = (PIPE_WIDTH / 2 + 8) * Math.max(0.15, ratio * 0.85);
-        if (batX + 10 > pipeCenterX - effectiveHalfWidth && batX - 10 < pipeCenterX + effectiveHalfWidth) {
-          inTopPipe = true;
+      const batRadius = 10;
+      if (batX + batRadius > p.x && batX - batRadius < p.x + PIPE_WIDTH) {
+        if (s.batY - batRadius < p.topHeight || s.batY + batRadius > p.topHeight + PIPE_GAP) {
+          collided = true;
         }
-      }
-      
-      if (s.batY + 8 > p.topHeight + PIPE_GAP) {
-        const bottomHeight = CANVAS_HEIGHT - p.topHeight - PIPE_GAP;
-        const ratio = Math.min(1, ((s.batY + 8) - (p.topHeight + PIPE_GAP)) / bottomHeight);
-        const effectiveHalfWidth = (PIPE_WIDTH / 2 + 8) * Math.max(0.15, ratio * 0.85);
-        if (batX + 10 > pipeCenterX - effectiveHalfWidth && batX - 10 < pipeCenterX + effectiveHalfWidth) {
-          inBottomPipe = true;
-        }
-      }
-      
-      if (inTopPipe || inBottomPipe) {
-        collided = true;
       }
     }
 
@@ -206,14 +213,14 @@ const FlappyBatGame = () => {
     }
 
     // Draw
-    drawCaveBackground(ctx, s.frameCount);
+    drawBackground(ctx, s.frameCount);
     s.pipes.forEach((p) => {
-      drawStalactite(ctx, p.x, p.topHeight, true);
-      drawStalactite(ctx, p.x, CANVAS_HEIGHT - p.topHeight - PIPE_GAP, false);
+      drawEnemyObstacle(ctx, p.x, p.topHeight, true, p.enemyIndex);
+      drawEnemyObstacle(ctx, p.x, CANVAS_HEIGHT - p.topHeight - PIPE_GAP, false, p.enemyIndex2);
     });
     drawBat(ctx, batX, s.batY, s.batVelocity);
 
-    // Score display on canvas
+    // Score display
     ctx.fillStyle = "hsla(35, 80%, 55%, 0.9)";
     ctx.font = "bold 36px monospace";
     ctx.textAlign = "center";
@@ -235,8 +242,8 @@ const FlappyBatGame = () => {
     playFlap();
   }, [gameState]);
 
-  const restart = useCallback(() => {
-    startBgMusic();
+  const goHome = useCallback(() => {
+    stopBgMusic();
     stateRef.current = {
       batY: CANVAS_HEIGHT / 2,
       batVelocity: 0,
@@ -244,9 +251,11 @@ const FlappyBatGame = () => {
       frameCount: 0,
       score: 0,
       wingFrame: 0,
+      lastLandmarkScore: 0,
     };
+    landmarkIndexRef.current = (landmarkIndexRef.current + 1) % LANDMARKS.length;
     setScore(0);
-    setGameState("playing");
+    setGameState("idle");
   }, []);
 
   useEffect(() => {
@@ -260,13 +269,13 @@ const FlappyBatGame = () => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.code === "Space" || e.code === "ArrowUp") {
         e.preventDefault();
-        if (gameState === "over") restart();
+        if (gameState === "over") goHome();
         else jump();
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [jump, restart, gameState]);
+  }, [jump, goHome, gameState]);
 
   // Draw idle screen
   useEffect(() => {
@@ -275,13 +284,13 @@ const FlappyBatGame = () => {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    drawCaveBackground(ctx, 0);
+    drawBackground(ctx, 0);
     drawBat(ctx, 80, CANVAS_HEIGHT / 2, 0);
     ctx.fillStyle = "hsl(40, 20%, 90%)";
-    ctx.font = "bold 28px monospace";
+    ctx.font = "bold 32px monospace";
     ctx.textAlign = "center";
-    ctx.fillText("FLAPPY BAT", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3);
-    ctx.font = "16px monospace";
+    ctx.fillText("NAMO FLY", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3);
+    ctx.font = "14px monospace";
     ctx.fillStyle = "hsl(240, 10%, 55%)";
     ctx.fillText("Tap or press Space to fly", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3 + 35);
   }, [gameState]);
@@ -294,17 +303,17 @@ const FlappyBatGame = () => {
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
           className="rounded-lg border border-border cursor-pointer"
-          onClick={() => (gameState === "over" ? restart() : jump())}
+          onClick={() => (gameState === "over" ? goHome() : jump())}
         />
         {gameState === "over" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 rounded-lg backdrop-blur-sm">
             <h2 className="text-4xl font-bold text-primary font-mono mb-2">GAME OVER</h2>
             <p className="text-2xl text-foreground font-mono mb-6">Score: {score}</p>
             <button
-              onClick={restart}
+              onClick={goHome}
               className="px-8 py-3 bg-primary text-primary-foreground font-mono font-bold rounded-lg hover:opacity-90 transition-opacity text-lg"
             >
-              RESTART
+              HOME
             </button>
           </div>
         )}
