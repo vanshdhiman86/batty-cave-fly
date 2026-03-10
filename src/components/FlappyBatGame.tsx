@@ -69,6 +69,49 @@ const FlappyBatGame = () => {
 
   const getLandmark = () => LANDMARKS[landmarkIndexRef.current % LANDMARKS.length];
 
+  const drawLandmarkIcon = (ctx: CanvasRenderingContext2D, type: number, x: number, y: number, scale: number, color: string) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+
+    switch (type % 4) {
+      case 0: // Eiffel Tower
+        ctx.moveTo(0, -30); ctx.lineTo(-8, 0); ctx.lineTo(-14, 30);
+        ctx.lineTo(-6, 30); ctx.lineTo(-4, 15); ctx.lineTo(4, 15);
+        ctx.lineTo(6, 30); ctx.lineTo(14, 30); ctx.lineTo(8, 0);
+        ctx.closePath(); ctx.fill();
+        ctx.fillRect(-10, 8, 20, 2);
+        ctx.fillRect(-6, -5, 12, 2);
+        break;
+      case 1: // Taj Mahal
+        ctx.fillRect(-16, 10, 32, 20);
+        ctx.arc(0, 0, 12, Math.PI, 0); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, -2, 6, Math.PI, 0); ctx.fill();
+        ctx.fillRect(-1, -14, 2, 8);
+        ctx.fillRect(-20, 12, 4, 18); ctx.fillRect(16, 12, 4, 18);
+        break;
+      case 2: // White House
+        ctx.fillRect(-20, 5, 40, 25);
+        ctx.moveTo(-22, 5); ctx.lineTo(0, -10); ctx.lineTo(22, 5); ctx.closePath(); ctx.fill();
+        ctx.fillRect(-3, -10, 6, -8);
+        for (let c = -14; c <= 14; c += 7) { ctx.fillRect(c - 1, 10, 2, 12); }
+        break;
+      case 3: // Tokyo Tower
+        ctx.moveTo(0, -35); ctx.lineTo(-10, 30); ctx.lineTo(-6, 30);
+        ctx.lineTo(-4, 10); ctx.lineTo(4, 10); ctx.lineTo(6, 30);
+        ctx.lineTo(10, 30); ctx.closePath(); ctx.fill();
+        ctx.fillRect(-8, 5, 16, 2);
+        ctx.fillRect(-6, -10, 12, 2);
+        ctx.fillRect(-1, -35, 2, -8);
+        break;
+    }
+    ctx.restore();
+  };
+
   const drawBackground = (ctx: CanvasRenderingContext2D, frame: number) => {
     const lm = getLandmark();
     const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
@@ -78,21 +121,35 @@ const FlappyBatGame = () => {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // Floating particles with landmark accent
+    // Scrolling landmark pattern (parallax - slower than pipes)
+    const parallaxSpeed = 0.4;
+    const spacing = 120;
+    const rows = [
+      { y: CANVAS_HEIGHT * 0.25, alpha: 0.06, s: 0.7 },
+      { y: CANVAS_HEIGHT * 0.50, alpha: 0.09, s: 0.9 },
+      { y: CANVAS_HEIGHT * 0.75, alpha: 0.12, s: 1.1 },
+    ];
+    const totalWidth = spacing * 4;
+
+    for (const row of rows) {
+      const offset = (frame * parallaxSpeed * row.s) % totalWidth;
+      for (let i = -1; i < Math.ceil(CANVAS_WIDTH / spacing) + 2; i++) {
+        const px = i * spacing - offset;
+        const iconType = ((i % 4) + 4) % 4;
+        const color = lm.accent.replace(/[\d.]+\)$/, `${row.alpha})`);
+        drawLandmarkIcon(ctx, iconType, px, row.y + Math.sin(frame * 0.01 + i) * 4, row.s, color);
+      }
+    }
+
+    // Floating particles
     ctx.fillStyle = lm.accent;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 15; i++) {
       const px = ((i * 97 + frame * 0.3) % (CANVAS_WIDTH + 20)) - 10;
       const py = ((i * 53 + Math.sin(frame * 0.02 + i) * 20) % CANVAS_HEIGHT);
       ctx.beginPath();
-      ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+      ctx.arc(px, py, 1.2, 0, Math.PI * 2);
       ctx.fill();
     }
-
-    // Landmark name label
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.font = "bold 60px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText(lm.name.toUpperCase(), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
   };
 
   const drawBat = (ctx: CanvasRenderingContext2D, x: number, y: number, velocity: number) => {
