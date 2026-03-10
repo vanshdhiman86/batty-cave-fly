@@ -158,7 +158,7 @@ const FlappyBatGame = () => {
     ctx.translate(x, y);
     ctx.rotate(rotation);
     const img = modiImgRef.current;
-    const size = 50;
+    const size = 70;
     if (img) {
       ctx.drawImage(img, -size / 2, -size / 2, size, size);
     } else {
