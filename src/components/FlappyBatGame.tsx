@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { playFlap, playScore, playGameOver, startBgMusic, stopBgMusic } from "./game/AudioManager";
+import { preloadBackgrounds, drawParallaxBackground, getLevelIndex, getLevelName, LEVEL_INTERVAL } from "./game/BackgroundRenderer";
 import modiBatImg from "../assets/modi-bat.png";
 import kejriwalImg from "../assets/kejriwal.png";
 import rahulImg from "../assets/rahul.png";
@@ -13,26 +14,15 @@ const PIPE_WIDTH = 60;
 const PIPE_GAP = 150;
 const PIPE_SPEED = 2.5;
 const PIPE_INTERVAL = 180;
-const OBSTACLE_SIZE = 55;
 
 const ENEMY_IMAGES = [kejriwalImg, rahulImg, trumpImg];
-
-// Landmark color palettes for dynamic backgrounds
-const LANDMARKS = [
-  { name: "Delhi", sky: ["#1a1a2e", "#16213e", "#0f3460"], ground: "#e94560", accent: "rgba(233,69,96,0.15)" },
-  { name: "Paris", sky: ["#2d1b69", "#11052c", "#3c096c"], ground: "#f72585", accent: "rgba(247,37,133,0.12)" },
-  { name: "Washington", sky: ["#0d1b2a", "#1b263b", "#415a77"], ground: "#778da9", accent: "rgba(119,141,169,0.1)" },
-  { name: "Agra", sky: ["#1b0a2e", "#2d1459", "#4a1f7a"], ground: "#e0aaff", accent: "rgba(224,170,255,0.1)" },
-  { name: "Beijing", sky: ["#2b0000", "#450a0a", "#7f1d1d"], ground: "#fca311", accent: "rgba(252,163,17,0.12)" },
-  { name: "London", sky: ["#1a1a2e", "#2d3436", "#636e72"], ground: "#dfe6e9", accent: "rgba(223,230,233,0.08)" },
-];
 
 interface Pipe {
   x: number;
   topHeight: number;
   scored: boolean;
-  enemyIndex: number; // which enemy sprite to use (top)
-  enemyIndex2: number; // which enemy sprite for bottom
+  enemyIndex: number;
+  enemyIndex2: number;
 }
 
 const FlappyBatGame = () => {
@@ -42,7 +32,8 @@ const FlappyBatGame = () => {
   const enemyImgsRef = useRef<HTMLImageElement[]>([]);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState<"idle" | "playing" | "over">("idle");
-  const landmarkIndexRef = useRef(0);
+  const prevLevelIdxRef = useRef(0);
+  const bgReadyRef = useRef(false);
 
   const stateRef = useRef({
     batY: CANVAS_HEIGHT / 2,
@@ -51,10 +42,10 @@ const FlappyBatGame = () => {
     frameCount: 0,
     score: 0,
     wingFrame: 0,
-    lastLandmarkScore: 0,
+    lastLevelScore: -1,
   });
 
-  // Preload images
+  // Preload all images
   useEffect(() => {
     const img = new Image();
     img.src = modiBatImg;
@@ -65,92 +56,9 @@ const FlappyBatGame = () => {
       eImg.src = src;
       eImg.onload = () => { enemyImgsRef.current[i] = eImg; };
     });
+
+    preloadBackgrounds(() => { bgReadyRef.current = true; });
   }, []);
-
-  const getLandmark = () => LANDMARKS[landmarkIndexRef.current % LANDMARKS.length];
-
-  const drawLandmarkIcon = (ctx: CanvasRenderingContext2D, type: number, x: number, y: number, scale: number, color: string) => {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-    ctx.fillStyle = color;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-
-    switch (type % 4) {
-      case 0: // Eiffel Tower
-        ctx.moveTo(0, -30); ctx.lineTo(-8, 0); ctx.lineTo(-14, 30);
-        ctx.lineTo(-6, 30); ctx.lineTo(-4, 15); ctx.lineTo(4, 15);
-        ctx.lineTo(6, 30); ctx.lineTo(14, 30); ctx.lineTo(8, 0);
-        ctx.closePath(); ctx.fill();
-        ctx.fillRect(-10, 8, 20, 2);
-        ctx.fillRect(-6, -5, 12, 2);
-        break;
-      case 1: // Taj Mahal
-        ctx.fillRect(-16, 10, 32, 20);
-        ctx.arc(0, 0, 12, Math.PI, 0); ctx.fill();
-        ctx.beginPath(); ctx.arc(0, -2, 6, Math.PI, 0); ctx.fill();
-        ctx.fillRect(-1, -14, 2, 8);
-        ctx.fillRect(-20, 12, 4, 18); ctx.fillRect(16, 12, 4, 18);
-        break;
-      case 2: // White House
-        ctx.fillRect(-20, 5, 40, 25);
-        ctx.moveTo(-22, 5); ctx.lineTo(0, -10); ctx.lineTo(22, 5); ctx.closePath(); ctx.fill();
-        ctx.fillRect(-3, -10, 6, -8);
-        for (let c = -14; c <= 14; c += 7) { ctx.fillRect(c - 1, 10, 2, 12); }
-        break;
-      case 3: // Tokyo Tower
-        ctx.moveTo(0, -35); ctx.lineTo(-10, 30); ctx.lineTo(-6, 30);
-        ctx.lineTo(-4, 10); ctx.lineTo(4, 10); ctx.lineTo(6, 30);
-        ctx.lineTo(10, 30); ctx.closePath(); ctx.fill();
-        ctx.fillRect(-8, 5, 16, 2);
-        ctx.fillRect(-6, -10, 12, 2);
-        ctx.fillRect(-1, -35, 2, -8);
-        break;
-    }
-    ctx.restore();
-  };
-
-  const drawBackground = (ctx: CanvasRenderingContext2D, frame: number) => {
-    const lm = getLandmark();
-    const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
-    grad.addColorStop(0, lm.sky[0]);
-    grad.addColorStop(0.5, lm.sky[1]);
-    grad.addColorStop(1, lm.sky[2]);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-    // Scrolling landmark pattern (parallax - slower than pipes)
-    const parallaxSpeed = 0.4;
-    const spacing = 120;
-    const rows = [
-      { y: CANVAS_HEIGHT * 0.25, alpha: 0.06, s: 0.7 },
-      { y: CANVAS_HEIGHT * 0.50, alpha: 0.09, s: 0.9 },
-      { y: CANVAS_HEIGHT * 0.75, alpha: 0.12, s: 1.1 },
-    ];
-    const totalWidth = spacing * 4;
-
-    for (const row of rows) {
-      const offset = (frame * parallaxSpeed * row.s) % totalWidth;
-      for (let i = -1; i < Math.ceil(CANVAS_WIDTH / spacing) + 2; i++) {
-        const px = i * spacing - offset;
-        const iconType = ((i % 4) + 4) % 4;
-        const color = lm.accent.replace(/[\d.]+\)$/, `${row.alpha})`);
-        drawLandmarkIcon(ctx, iconType, px, row.y + Math.sin(frame * 0.01 + i) * 4, row.s, color);
-      }
-    }
-
-    // Floating particles
-    ctx.fillStyle = lm.accent;
-    for (let i = 0; i < 15; i++) {
-      const px = ((i * 97 + frame * 0.3) % (CANVAS_WIDTH + 20)) - 10;
-      const py = ((i * 53 + Math.sin(frame * 0.02 + i) * 20) % CANVAS_HEIGHT);
-      ctx.beginPath();
-      ctx.arc(px, py, 1.2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  };
 
   const drawBat = (ctx: CanvasRenderingContext2D, x: number, y: number, velocity: number) => {
     const rotation = Math.min(Math.max(velocity * 3, -30), 45) * (Math.PI / 180);
@@ -176,16 +84,15 @@ const FlappyBatGame = () => {
     const centerX = x + PIPE_WIDTH / 2;
     const centerY = fromTop ? height - spriteSize / 2 : CANVAS_HEIGHT - height + spriteSize / 2;
 
-    // Draw the pipe/pillar extending from wall to sprite
-    const lm = getLandmark();
-    ctx.fillStyle = lm.ground + "44";
+    // Pillar
+    ctx.fillStyle = "rgba(80, 60, 40, 0.35)";
     if (fromTop) {
       ctx.fillRect(x + 10, 0, PIPE_WIDTH - 20, height - spriteSize / 2);
     } else {
       ctx.fillRect(x + 10, CANVAS_HEIGHT - height + spriteSize / 2, PIPE_WIDTH - 20, height - spriteSize / 2);
     }
 
-    // Circular clip for the sprite
+    // Circular sprite
     ctx.save();
     ctx.beginPath();
     ctx.arc(centerX, centerY, spriteSize / 2, 0, Math.PI * 2);
@@ -221,10 +128,15 @@ const FlappyBatGame = () => {
     s.batVelocity += GRAVITY;
     s.batY += s.batVelocity;
 
-    // Change landmark every 10 points
-    if (s.score > 0 && s.score % 10 === 0 && s.score !== s.lastLandmarkScore) {
-      s.lastLandmarkScore = s.score;
-      landmarkIndexRef.current = (landmarkIndexRef.current + 1) % LANDMARKS.length;
+    // Track level transitions
+    const newLevelIdx = getLevelIndex(s.score);
+    if (s.score !== s.lastLevelScore && s.score > 0 && s.score % LEVEL_INTERVAL === 0) {
+      // Level just changed - keep previous for fade
+      s.lastLevelScore = s.score;
+      // prevLevelIdxRef will update after transition frames
+      setTimeout(() => {
+        prevLevelIdxRef.current = newLevelIdx;
+      }, 1000);
     }
 
     // Pipes
@@ -251,7 +163,6 @@ const FlappyBatGame = () => {
         continue;
       }
 
-      // Score
       if (!s.pipes[i].scored && s.pipes[i].x + PIPE_WIDTH < batX) {
         s.pipes[i].scored = true;
         s.score++;
@@ -259,7 +170,6 @@ const FlappyBatGame = () => {
         playScore();
       }
 
-      // Collision - rectangular for the enemy sprites
       const p = s.pipes[i];
       const batRadius = 10;
       if (batX + batRadius > p.x && batX - batRadius < p.x + PIPE_WIDTH) {
@@ -269,7 +179,6 @@ const FlappyBatGame = () => {
       }
     }
 
-    // Bounds
     if (s.batY < 10 || s.batY > CANVAS_HEIGHT - 10) collided = true;
 
     if (collided) {
@@ -279,22 +188,30 @@ const FlappyBatGame = () => {
       return;
     }
 
-    // Draw
-    drawBackground(ctx, s.frameCount);
+    // Draw parallax background (no hitbox interference - purely visual)
+    drawParallaxBackground(ctx, CANVAS_WIDTH, CANVAS_HEIGHT, s.frameCount, s.score, PIPE_SPEED, prevLevelIdxRef.current);
+
+    // Draw obstacles on top
     s.pipes.forEach((p) => {
       drawEnemyObstacle(ctx, p.x, p.topHeight, true, p.enemyIndex);
       drawEnemyObstacle(ctx, p.x, CANVAS_HEIGHT - p.topHeight - PIPE_GAP, false, p.enemyIndex2);
     });
+
     drawBat(ctx, batX, s.batY, s.batVelocity);
 
     // Score display
-    ctx.fillStyle = "hsla(35, 80%, 55%, 0.9)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
     ctx.font = "bold 36px monospace";
     ctx.textAlign = "center";
-    ctx.shadowColor = "hsla(35, 80%, 55%, 0.5)";
-    ctx.shadowBlur = 15;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+    ctx.shadowBlur = 8;
     ctx.fillText(String(s.score), CANVAS_WIDTH / 2, 50);
     ctx.shadowBlur = 0;
+
+    // Level name indicator
+    ctx.font = "12px monospace";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.fillText(getLevelName(s.score), CANVAS_WIDTH / 2, 70);
 
     gameLoopRef.current = requestAnimationFrame(gameLoop);
   }, []);
@@ -318,9 +235,9 @@ const FlappyBatGame = () => {
       frameCount: 0,
       score: 0,
       wingFrame: 0,
-      lastLandmarkScore: 0,
+      lastLevelScore: -1,
     };
-    landmarkIndexRef.current = (landmarkIndexRef.current + 1) % LANDMARKS.length;
+    prevLevelIdxRef.current = 0;
     setScore(0);
     setGameState("idle");
   }, []);
@@ -344,21 +261,26 @@ const FlappyBatGame = () => {
     return () => window.removeEventListener("keydown", handleKey);
   }, [jump, goHome, gameState]);
 
-  // Draw idle screen
+  // Idle screen
   useEffect(() => {
     if (gameState !== "idle") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    drawBackground(ctx, 0);
+
+    drawParallaxBackground(ctx, CANVAS_WIDTH, CANVAS_HEIGHT, 0, 0, PIPE_SPEED, 0);
     drawBat(ctx, 80, CANVAS_HEIGHT / 2, 0);
-    ctx.fillStyle = "hsl(40, 20%, 90%)";
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
     ctx.font = "bold 32px monospace";
     ctx.textAlign = "center";
+    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+    ctx.shadowBlur = 10;
     ctx.fillText("NAMO FLY", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3);
+    ctx.shadowBlur = 0;
     ctx.font = "14px monospace";
-    ctx.fillStyle = "hsl(240, 10%, 55%)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
     ctx.fillText("Tap or press Space to fly", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3 + 35);
   }, [gameState]);
 
