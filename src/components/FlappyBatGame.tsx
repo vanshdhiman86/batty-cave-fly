@@ -11,7 +11,9 @@ const CANVAS_HEIGHT = 600;
 const GRAVITY = 0.45;
 const JUMP_FORCE = -7.5;
 const PIPE_WIDTH = 60;
-const PIPE_GAP = 150;
+const MIN_PIPE_GAP = 140;
+const MAX_PIPE_GAP = 280;
+const TIGHT_GAP_CHANCE = 0.6;
 const PIPE_SPEED = 2.5;
 const PIPE_INTERVAL = 180;
 
@@ -20,6 +22,7 @@ const ENEMY_IMAGES = [kejriwalImg, rahulImg, trumpImg];
 interface Pipe {
   x: number;
   topHeight: number;
+  pipeGap: number;
   scored: boolean;
   enemyIndex: number;
   enemyIndex2: number;
