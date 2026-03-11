@@ -103,44 +103,18 @@ function drawSingleParallax(
   obstacleSpeed: number,
   alpha: number
 ) {
-  const iw = img.naturalWidth;
-  const ih = img.naturalHeight;
-
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Layers overlap by 8px to eliminate horizontal seams
-  // [srcYRatio, srcHeightRatio, destY, destHeight, speedMultiplier]
-  // Sky fills top, mountains overlap sky, grass reaches bottom
-  const overlap = 8;
-  const skyH = Math.round(ch * 0.42) + overlap;
-  const midY = Math.round(ch * 0.42) - overlap;
-  const midH = Math.round(ch * 0.34) + overlap * 2;
-  const fgY = midY + midH - overlap * 2;
-  const fgH = ch - fgY;
+  const scale = ch / img.naturalHeight;
+  const tileWidth = Math.ceil(img.naturalWidth * scale);
+  const scrollSpeed = obstacleSpeed * 0.4;
+  const offset = Math.floor((frame * scrollSpeed) % tileWidth);
 
-  const layers: [number, number, number, number, number][] = [
-    [0,    0.38, 0,    skyH, 0.20],  // Sky – slowest, top of canvas
-    [0.32, 0.36, midY, midH, 0.50],  // Mountains – medium speed
-    [0.62, 0.38, fgY,  fgH,  0.80],  // Grass – fastest, bottom of canvas
-  ];
-
-  for (const [srcYR, srcHR, destY, destH, speedMul] of layers) {
-    const srcY = srcYR * ih;
-    const srcH = srcHR * ih;
-
-    const scrollSpeed = obstacleSpeed * speedMul;
-    const scaledWidth = (srcH > 0) ? (iw / srcH) * destH : cw;
-    const tileWidth = Math.max(scaledWidth, cw);
-    // Use Math.floor to avoid sub-pixel seams at tile edges
-    const offset = Math.floor((frame * scrollSpeed) % tileWidth);
-
-    // Draw enough copies to cover the full canvas width seamlessly
-    let x = -offset;
-    while (x < cw) {
-      ctx.drawImage(img, 0, srcY, iw, srcH, x, destY, tileWidth, destH);
-      x += tileWidth;
-    }
+  let x = -offset;
+  while (x < cw) {
+    ctx.drawImage(img, x, 0, tileWidth, ch);
+    x += tileWidth;
   }
 
   ctx.restore();
