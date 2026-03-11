@@ -282,27 +282,44 @@ const FlappyBatGame = () => {
     return () => window.removeEventListener("keydown", handleKey);
   }, [jump, goHome, gameState]);
 
-  // Idle screen
+  // Idle screen - redraw when backgrounds load or gameState changes
   useEffect(() => {
     if (gameState !== "idle") return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
 
-    drawParallaxBackground(ctx, CANVAS_WIDTH, CANVAS_HEIGHT, 0, 0, PIPE_SPEED, 0);
-    drawBat(ctx, 80, CANVAS_HEIGHT / 2, 0);
+    const drawIdle = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-    ctx.font = "bold 32px monospace";
-    ctx.textAlign = "center";
-    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-    ctx.shadowBlur = 10;
-    ctx.fillText("NAMO FLY", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3);
-    ctx.shadowBlur = 0;
-    ctx.font = "14px monospace";
-    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-    ctx.fillText("Tap or press Space to fly", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3 + 35);
+      drawParallaxBackground(ctx, CANVAS_WIDTH, CANVAS_HEIGHT, 0, 0, PIPE_SPEED, 0);
+      drawBat(ctx, 80, CANVAS_HEIGHT / 2, 0);
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.font = "bold 32px monospace";
+      ctx.textAlign = "center";
+      ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+      ctx.shadowBlur = 10;
+      ctx.fillText("NAMO FLY", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3);
+      ctx.shadowBlur = 0;
+      ctx.font = "14px monospace";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.fillText("Tap or press Space to fly", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 3 + 35);
+    };
+
+    // Draw immediately
+    drawIdle();
+
+    // Redraw after backgrounds finish loading (in case they weren't ready)
+    if (!bgReadyRef.current) {
+      const interval = setInterval(() => {
+        if (bgReadyRef.current) {
+          drawIdle();
+          clearInterval(interval);
+        }
+      }, 100);
+      return () => clearInterval(interval);
+    }
   }, [gameState]);
 
   return (
