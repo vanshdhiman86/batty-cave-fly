@@ -144,12 +144,17 @@ const FlappyBatGame = () => {
 
     // Pipes
     if (s.frameCount % PIPE_INTERVAL === 0) {
+      const isTightGap = Math.random() < TIGHT_GAP_CHANCE;
+      const pipeGap = isTightGap
+        ? MIN_PIPE_GAP + Math.random() * 20
+        : MAX_PIPE_GAP - Math.random() * 40;
       const minTop = 60;
-      const maxTop = CANVAS_HEIGHT - PIPE_GAP - 60;
+      const maxTop = CANVAS_HEIGHT - pipeGap - 60;
       const topHeight = minTop + Math.random() * (maxTop - minTop);
       s.pipes.push({
         x: CANVAS_WIDTH,
         topHeight,
+        pipeGap,
         scored: false,
         enemyIndex: Math.floor(Math.random() * 3),
         enemyIndex2: Math.floor(Math.random() * 3),
