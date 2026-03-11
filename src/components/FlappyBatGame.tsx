@@ -38,6 +38,10 @@ const FlappyBatGame = () => {
   const prevLevelIdxRef = useRef(0);
   const bgReadyRef = useRef(false);
 
+  const lastTimeRef = useRef(0);
+  const accumRef = useRef(0);
+  const FIXED_DT = 1000 / 60; // Target 60fps physics
+
   const stateRef = useRef({
     batY: CANVAS_HEIGHT / 2,
     batVelocity: 0,
