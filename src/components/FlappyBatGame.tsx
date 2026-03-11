@@ -181,7 +181,7 @@ const FlappyBatGame = () => {
       const p = s.pipes[i];
       const batRadius = 10;
       if (batX + batRadius > p.x && batX - batRadius < p.x + PIPE_WIDTH) {
-        if (s.batY - batRadius < p.topHeight || s.batY + batRadius > p.topHeight + PIPE_GAP) {
+        if (s.batY - batRadius < p.topHeight || s.batY + batRadius > p.topHeight + p.pipeGap) {
           collided = true;
         }
       }
