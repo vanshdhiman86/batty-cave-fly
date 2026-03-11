@@ -202,7 +202,7 @@ const FlappyBatGame = () => {
     // Draw obstacles on top
     s.pipes.forEach((p) => {
       drawEnemyObstacle(ctx, p.x, p.topHeight, true, p.enemyIndex);
-      drawEnemyObstacle(ctx, p.x, CANVAS_HEIGHT - p.topHeight - PIPE_GAP, false, p.enemyIndex2);
+      drawEnemyObstacle(ctx, p.x, CANVAS_HEIGHT - p.topHeight - p.pipeGap, false, p.enemyIndex2);
     });
 
     drawBat(ctx, batX, s.batY, s.batVelocity);
