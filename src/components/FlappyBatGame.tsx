@@ -239,6 +239,8 @@ const FlappyBatGame = () => {
     if (gameState === "idle") {
       setGameState("playing");
       startBgMusic();
+      lastTimeRef.current = 0;
+      accumRef.current = 0;
     }
     if (gameState === "over") return;
     stateRef.current.batVelocity = JUMP_FORCE;
