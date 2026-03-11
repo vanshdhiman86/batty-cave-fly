@@ -109,35 +109,37 @@ function drawSingleParallax(
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Layer definitions: [srcYRatio, srcHeightRatio, destYRatio, destHeightRatio, speedMultiplier]
+  // Layers overlap by 8px to eliminate horizontal seams
+  // [srcYRatio, srcHeightRatio, destY, destHeight, speedMultiplier]
+  // Sky fills top, mountains overlap sky, grass reaches bottom
+  const overlap = 8;
+  const skyH = Math.round(ch * 0.42) + overlap;
+  const midY = Math.round(ch * 0.42) - overlap;
+  const midH = Math.round(ch * 0.34) + overlap * 2;
+  const fgY = midY + midH - overlap * 2;
+  const fgH = ch - fgY;
+
   const layers: [number, number, number, number, number][] = [
-    [0, 0.35, 0, 0.40, 0.20],    // Far sky - top 35% of image → top 40% of canvas
-    [0.30, 0.40, 0.30, 0.45, 0.50], // Midground - middle 40% → middle 45%
-    [0.65, 0.35, 0.70, 0.30, 0.80], // Foreground - bottom 35% → bottom 30%
+    [0,    0.38, 0,    skyH, 0.20],  // Sky – slowest, top of canvas
+    [0.32, 0.36, midY, midH, 0.50],  // Mountains – medium speed
+    [0.62, 0.38, fgY,  fgH,  0.80],  // Grass – fastest, bottom of canvas
   ];
 
-  for (const [srcYR, srcHR, destYR, destHR, speedMul] of layers) {
+  for (const [srcYR, srcHR, destY, destH, speedMul] of layers) {
     const srcY = srcYR * ih;
     const srcH = srcHR * ih;
-    const destY = destYR * ch;
-    const destH = destHR * ch;
 
-    // Calculate scroll offset for seamless tiling
     const scrollSpeed = obstacleSpeed * speedMul;
     const scaledWidth = (srcH > 0) ? (iw / srcH) * destH : cw;
-    const tileWidth = Math.max(scaledWidth, cw); // at least canvas width
-    const offset = (frame * scrollSpeed) % tileWidth;
+    const tileWidth = Math.max(scaledWidth, cw);
+    // Use Math.floor to avoid sub-pixel seams at tile edges
+    const offset = Math.floor((frame * scrollSpeed) % tileWidth);
 
-    // Draw two copies for seamless scrolling
-    const x1 = -offset;
-    const x2 = x1 + tileWidth;
-
-    ctx.drawImage(img, 0, srcY, iw, srcH, x1, destY, tileWidth, destH);
-    ctx.drawImage(img, 0, srcY, iw, srcH, x2, destY, tileWidth, destH);
-
-    // If x2 + tileWidth doesn't cover canvas, draw a third
-    if (x2 + tileWidth < cw) {
-      ctx.drawImage(img, 0, srcY, iw, srcH, x2 + tileWidth, destY, tileWidth, destH);
+    // Draw enough copies to cover the full canvas width seamlessly
+    let x = -offset;
+    while (x < cw) {
+      ctx.drawImage(img, 0, srcY, iw, srcH, x, destY, tileWidth, destH);
+      x += tileWidth;
     }
   }
 
