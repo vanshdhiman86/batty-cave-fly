@@ -121,89 +121,98 @@ const FlappyBatGame = () => {
     ctx.stroke();
   };
 
-  const gameLoop = useCallback(() => {
+  const gameLoop = useCallback((timestamp: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const s = stateRef.current;
-    s.frameCount++;
-    s.wingFrame++;
+    if (lastTimeRef.current === 0) lastTimeRef.current = timestamp;
+    const elapsed = Math.min(timestamp - lastTimeRef.current, 50); // cap to avoid spiral
+    lastTimeRef.current = timestamp;
+    accumRef.current += elapsed;
 
-    // Physics
-    s.batVelocity += GRAVITY;
-    s.batY += s.batVelocity;
+    // Run fixed-step physics updates
+    while (accumRef.current >= FIXED_DT) {
+      accumRef.current -= FIXED_DT;
+      const s = stateRef.current;
+      s.frameCount++;
+      s.wingFrame++;
 
-    // Track level transitions
-    const newLevelIdx = getLevelIndex(s.score);
-    if (s.score !== s.lastLevelScore && s.score > 0 && s.score % LEVEL_INTERVAL === 0) {
-      // Level just changed - keep previous for fade
-      s.lastLevelScore = s.score;
-      // prevLevelIdxRef will update after transition frames
-      setTimeout(() => {
-        prevLevelIdxRef.current = newLevelIdx;
-      }, 1000);
-    }
+      // Physics
+      s.batVelocity += GRAVITY;
+      s.batY += s.batVelocity;
 
-    // Pipes
-    if (s.frameCount % PIPE_INTERVAL === 0) {
-      const isTightGap = Math.random() < TIGHT_GAP_CHANCE;
-      const pipeGap = isTightGap
-        ? MIN_PIPE_GAP + Math.random() * 20
-        : MAX_PIPE_GAP - Math.random() * 40;
-      const minTop = 60;
-      const maxTop = CANVAS_HEIGHT - pipeGap - 60;
-      const topHeight = minTop + Math.random() * (maxTop - minTop);
-      s.pipes.push({
-        x: CANVAS_WIDTH,
-        topHeight,
-        pipeGap,
-        scored: false,
-        enemyIndex: Math.floor(Math.random() * 3),
-        enemyIndex2: Math.floor(Math.random() * 3),
-      });
-    }
-
-    const batX = 80;
-    let collided = false;
-
-    for (let i = s.pipes.length - 1; i >= 0; i--) {
-      s.pipes[i].x -= PIPE_SPEED;
-      if (s.pipes[i].x < -PIPE_WIDTH - 10) {
-        s.pipes.splice(i, 1);
-        continue;
+      // Track level transitions
+      const newLevelIdx = getLevelIndex(s.score);
+      if (s.score !== s.lastLevelScore && s.score > 0 && s.score % LEVEL_INTERVAL === 0) {
+        s.lastLevelScore = s.score;
+        setTimeout(() => {
+          prevLevelIdxRef.current = newLevelIdx;
+        }, 1000);
       }
 
-      if (!s.pipes[i].scored && s.pipes[i].x + PIPE_WIDTH < batX) {
-        s.pipes[i].scored = true;
-        s.score++;
-        setScore(s.score);
-        playScore();
+      // Pipes
+      if (s.frameCount % PIPE_INTERVAL === 0) {
+        const isTightGap = Math.random() < TIGHT_GAP_CHANCE;
+        const pipeGap = isTightGap
+          ? MIN_PIPE_GAP + Math.random() * 20
+          : MAX_PIPE_GAP - Math.random() * 40;
+        const minTop = 60;
+        const maxTop = CANVAS_HEIGHT - pipeGap - 60;
+        const topHeight = minTop + Math.random() * (maxTop - minTop);
+        s.pipes.push({
+          x: CANVAS_WIDTH,
+          topHeight,
+          pipeGap,
+          scored: false,
+          enemyIndex: Math.floor(Math.random() * 3),
+          enemyIndex2: Math.floor(Math.random() * 3),
+        });
       }
 
-      const p = s.pipes[i];
-      const batRadius = 10;
-      if (batX + batRadius > p.x && batX - batRadius < p.x + PIPE_WIDTH) {
-        if (s.batY - batRadius < p.topHeight || s.batY + batRadius > p.topHeight + p.pipeGap) {
-          collided = true;
+      const batX = 80;
+
+      for (let i = s.pipes.length - 1; i >= 0; i--) {
+        s.pipes[i].x -= PIPE_SPEED;
+        if (s.pipes[i].x < -PIPE_WIDTH - 10) {
+          s.pipes.splice(i, 1);
+          continue;
+        }
+
+        if (!s.pipes[i].scored && s.pipes[i].x + PIPE_WIDTH < batX) {
+          s.pipes[i].scored = true;
+          s.score++;
+          setScore(s.score);
+          playScore();
+        }
+
+        const p = s.pipes[i];
+        const batRadius = 10;
+        if (batX + batRadius > p.x && batX - batRadius < p.x + PIPE_WIDTH) {
+          if (s.batY - batRadius < p.topHeight || s.batY + batRadius > p.topHeight + p.pipeGap) {
+            playGameOver();
+            stopBgMusic();
+            setGameState("over");
+            return;
+          }
         }
       }
+
+      if (s.batY < 10 || s.batY > CANVAS_HEIGHT - 10) {
+        playGameOver();
+        stopBgMusic();
+        setGameState("over");
+        return;
+      }
     }
 
-    if (s.batY < 10 || s.batY > CANVAS_HEIGHT - 10) collided = true;
+    // Render once per frame
+    const s = stateRef.current;
+    const batX = 80;
 
-    if (collided) {
-      playGameOver();
-      stopBgMusic();
-      setGameState("over");
-      return;
-    }
-
-    // Draw parallax background (no hitbox interference - purely visual)
     drawParallaxBackground(ctx, CANVAS_WIDTH, CANVAS_HEIGHT, s.frameCount, s.score, PIPE_SPEED, prevLevelIdxRef.current);
 
-    // Draw obstacles on top
     s.pipes.forEach((p) => {
       drawEnemyObstacle(ctx, p.x, p.topHeight, true, p.enemyIndex);
       drawEnemyObstacle(ctx, p.x, CANVAS_HEIGHT - p.topHeight - p.pipeGap, false, p.enemyIndex2);
@@ -211,7 +220,6 @@ const FlappyBatGame = () => {
 
     drawBat(ctx, batX, s.batY, s.batVelocity);
 
-    // Score display
     ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
     ctx.font = "bold 36px monospace";
     ctx.textAlign = "center";
@@ -220,7 +228,6 @@ const FlappyBatGame = () => {
     ctx.fillText(String(s.score), CANVAS_WIDTH / 2, 50);
     ctx.shadowBlur = 0;
 
-    // Level name indicator
     ctx.font = "12px monospace";
     ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
     ctx.fillText(getLevelName(s.score), CANVAS_WIDTH / 2, 70);
