@@ -11,7 +11,9 @@ const CANVAS_HEIGHT = 600;
 const GRAVITY = 0.45;
 const JUMP_FORCE = -7.5;
 const PIPE_WIDTH = 60;
-const PIPE_GAP = 150;
+const MIN_PIPE_GAP = 140;
+const MAX_PIPE_GAP = 280;
+const TIGHT_GAP_CHANCE = 0.6;
 const PIPE_SPEED = 2.5;
 const PIPE_INTERVAL = 180;
 
@@ -20,6 +22,7 @@ const ENEMY_IMAGES = [kejriwalImg, rahulImg, trumpImg];
 interface Pipe {
   x: number;
   topHeight: number;
+  pipeGap: number;
   scored: boolean;
   enemyIndex: number;
   enemyIndex2: number;
@@ -141,12 +144,17 @@ const FlappyBatGame = () => {
 
     // Pipes
     if (s.frameCount % PIPE_INTERVAL === 0) {
+      const isTightGap = Math.random() < TIGHT_GAP_CHANCE;
+      const pipeGap = isTightGap
+        ? MIN_PIPE_GAP + Math.random() * 20
+        : MAX_PIPE_GAP - Math.random() * 40;
       const minTop = 60;
-      const maxTop = CANVAS_HEIGHT - PIPE_GAP - 60;
+      const maxTop = CANVAS_HEIGHT - pipeGap - 60;
       const topHeight = minTop + Math.random() * (maxTop - minTop);
       s.pipes.push({
         x: CANVAS_WIDTH,
         topHeight,
+        pipeGap,
         scored: false,
         enemyIndex: Math.floor(Math.random() * 3),
         enemyIndex2: Math.floor(Math.random() * 3),
@@ -173,7 +181,7 @@ const FlappyBatGame = () => {
       const p = s.pipes[i];
       const batRadius = 10;
       if (batX + batRadius > p.x && batX - batRadius < p.x + PIPE_WIDTH) {
-        if (s.batY - batRadius < p.topHeight || s.batY + batRadius > p.topHeight + PIPE_GAP) {
+        if (s.batY - batRadius < p.topHeight || s.batY + batRadius > p.topHeight + p.pipeGap) {
           collided = true;
         }
       }
@@ -194,7 +202,7 @@ const FlappyBatGame = () => {
     // Draw obstacles on top
     s.pipes.forEach((p) => {
       drawEnemyObstacle(ctx, p.x, p.topHeight, true, p.enemyIndex);
-      drawEnemyObstacle(ctx, p.x, CANVAS_HEIGHT - p.topHeight - PIPE_GAP, false, p.enemyIndex2);
+      drawEnemyObstacle(ctx, p.x, CANVAS_HEIGHT - p.topHeight - p.pipeGap, false, p.enemyIndex2);
     });
 
     drawBat(ctx, batX, s.batY, s.batVelocity);
