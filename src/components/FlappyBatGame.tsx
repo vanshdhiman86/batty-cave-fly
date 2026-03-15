@@ -323,7 +323,7 @@ const FlappyBatGame = () => {
   }, [gameState]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background gap-4">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background gap-4 select-none touch-none" style={{ WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
       <div className="relative">
         <canvas
           ref={canvasRef}
